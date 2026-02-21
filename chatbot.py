@@ -1,47 +1,46 @@
-import streamlit as st
 import os
+
+import streamlit as st
 from dotenv import load_dotenv
-
-# LangChain Imports
 from langchain_community.document_loaders import TextLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-st.set_page_config(page_title="C++ Chatbot", page_icon=":robot_face:")
-st.title("C++ Chatbot")
-st.write("Ask questions")
-
+st.set_page_config(page_title="C++ RAG Chatbot", page_icon="💬")
+st.title("💬 C++ RAG Chatbot")
+st.write("Ask any question related to C++ Introduction.")
 
 load_dotenv()
 
+# Force anonymous access for public models to avoid expired local/CLI tokens.
+os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
+for key in ("HF_TOKEN", "HUGGINGFACEHUB_API_TOKEN", "HF_Token"):
+    os.environ.pop(key, None)
+
+
 @st.cache_resource
 def load_vectorstore():
-    # Load the text file
     loader = TextLoader("C++_Introduction.txt", encoding="utf-8")
     documents = loader.load()
 
-    # Split the text into smaller chunks
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=200, chunk_overlap=20)
-    finalDocuments = text_splitter.spilt_documents(documents)
+    final_documents = text_splitter.split_documents(documents)
 
-    # Create embeddings and vector store
-    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    db = FAISS.from_documents(finalDocuments, embeddings)
-    return db
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2",
+        model_kwargs={"token": False},
+    )
+
+    return FAISS.from_documents(final_documents, embeddings)
+
 
 db = load_vectorstore()
-
-# -----------------------------
-# User Input
-# -----------------------------
 query = st.text_input("Enter your question about C++:")
 
 if query:
     docs = db.similarity_search(query, k=3)
-
-    st.subheader("📚 Retrieved Context:")
-
+    st.subheader("Retrieved Context")
     for i, doc in enumerate(docs):
-        st.markdown(f"*Result {i+1}:*")
+        st.markdown(f"**Result {i + 1}:**")
         st.write(doc.page_content)
